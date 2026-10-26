@@ -1,0 +1,81 @@
+# FICTIONAL probe: the same attempts as automation.yml, made with the builder
+# App's installation token instead of GITHUB_TOKEN. Needs the App installed on
+# this repository, variable BUILDER_APP_ID and secret BUILDER_APP_KEY here.
+name: automation-app
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        required: true
+        type: choice
+        options: [open-pr, approve, merge, push-main, push-workflow, push-other, ledger-force]
+      pr:
+        required: false
+        default: ''
+permissions: {}
+jobs:
+  act:
+    runs-on: ubuntu-latest
+    steps:
+      - id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.BUILDER_APP_ID }}
+          private-key: ${{ secrets.BUILDER_APP_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          REPO: ${{ github.repository }}
+          ACTION: ${{ inputs.action }}
+          PR: ${{ inputs.pr }}
+          RUN: ${{ github.run_id }}
+          SLUG: ${{ steps.app.outputs.app-slug }}
+        run: |
+          set +e
+          git config user.name "$SLUG[bot]"
+          git config user.email "$SLUG[bot]@users.noreply.github.com"
+          say() { echo "RESULT app $ACTION: $*"; }
+          case "$ACTION" in
+            open-pr)
+              git switch -c "agent/app-$RUN"
+              echo "app change $RUN (FICTIONAL)" > "app-$RUN.txt"
+              git add -A && git commit -qm "app change $RUN (FICTIONAL)"
+              git push -q origin "agent/app-$RUN"; say "branch push exit=$?"
+              gh pr create --base main --head "agent/app-$RUN" --title "App change $RUN (FICTIONAL)" --body "Opened by the builder App (FICTIONAL probe)."; say "pr create exit=$?"
+              ;;
+            approve)
+              gh pr review "$PR" --approve --body "Approved by the builder App (FICTIONAL)"; say "approve exit=$?"
+              ;;
+            merge)
+              gh pr merge "$PR" --merge; say "gh pr merge exit=$?"
+              gh api -X PUT "repos/$REPO/pulls/$PR/merge" -f merge_method=merge; say "REST merge exit=$?"
+              ;;
+            push-main)
+              git switch -q main
+              echo "direct $RUN" > "app-direct-$RUN.txt"; git add -A && git commit -qm "app direct push $RUN (FICTIONAL)"
+              git push origin HEAD:main; say "git push main exit=$?"
+              ;;
+            push-workflow)
+              git switch -c "agent/app-workflow-$RUN"
+              echo "# changed $RUN" >> .github/workflows/test.yml
+              git add -A && git commit -qm "app workflow change $RUN (FICTIONAL)"
+              git push origin "agent/app-workflow-$RUN"; say "workflow-file push exit=$?"
+              ;;
+            push-other)
+              git switch -c "other/app-$RUN"
+              echo "other $RUN" > "app-other-$RUN.txt"; git add -A && git commit -qm "app other branch $RUN (FICTIONAL)"
+              git push origin "other/app-$RUN"; say "non-agent branch push exit=$?"
+              ;;
+            ledger-force)
+              git fetch -q origin agent-ledger && git switch -q -c ledger origin/agent-ledger
+              git commit -q --amend -m "app rewritten $RUN (FICTIONAL)"
+              git push --force origin HEAD:refs/heads/agent-ledger; say "ledger force push exit=$?"
+              ;;
+          esac
+          exit 0
