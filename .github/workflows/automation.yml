@@ -1,0 +1,76 @@
+# FICTIONAL probe: an automation identity (this job's GITHUB_TOKEN, the GitHub
+# Actions app's installation token) with Contents and Pull requests write,
+# trying what the boundary must refuse. Every attempt prints RESULT lines and
+# the job always succeeds, so the log is the evidence.
+name: automation
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        required: true
+        type: choice
+        options: [open-pr, approve, merge, push-main, ledger-append, ledger-force, ledger-delete]
+      pr:
+        required: false
+        default: ''
+permissions: {}
+jobs:
+  act:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ACTION: ${{ inputs.action }}
+          PR: ${{ inputs.pr }}
+          RUN: ${{ github.run_id }}
+        run: |
+          set +e
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          say() { echo "RESULT $ACTION: $*"; }
+          case "$ACTION" in
+            open-pr)
+              git switch -c "bot/change-$RUN"
+              echo "bot change $RUN (FICTIONAL)" > "bot-$RUN.txt"
+              git add -A && git commit -qm "bot change $RUN (FICTIONAL)"
+              git push -q origin "bot/change-$RUN"; say "branch push exit=$?"
+              gh pr create --base main --head "bot/change-$RUN" --title "Bot change $RUN (FICTIONAL)" --body "Opened by GITHUB_TOKEN (FICTIONAL probe)."; say "pr create exit=$?"
+              ;;
+            approve)
+              gh pr review "$PR" --approve --body "Approved by GITHUB_TOKEN (FICTIONAL)"; say "approve exit=$?"
+              ;;
+            merge)
+              gh pr merge "$PR" --merge; say "gh pr merge exit=$?"
+              gh api -X PUT "repos/$REPO/pulls/$PR/merge" -f merge_method=merge; say "REST merge exit=$?"
+              gh api -X PUT "repos/$REPO/pulls/$PR/merge" -f merge_method=squash; say "REST squash exit=$?"
+              gh api -X PUT "repos/$REPO/pulls/$PR/merge" -f merge_method=rebase; say "REST rebase exit=$?"
+              ;;
+            push-main)
+              git switch -q main
+              echo "direct $RUN" > "direct-$RUN.txt"; git add -A && git commit -qm "direct push $RUN (FICTIONAL)"
+              git push origin HEAD:main; say "git push main exit=$?"
+              gh api -X PUT "repos/$REPO/contents/api-$RUN.txt" -f message="api write $RUN (FICTIONAL)" -f content="$(printf 'x' | base64)" -f branch=main; say "contents API on main exit=$?"
+              ;;
+            ledger-append)
+              if git fetch -q origin agent-ledger; then git switch -q -c ledger origin/agent-ledger; else git switch -q --orphan ledger; git rm -rqf . ; fi
+              echo "{\"run\":$RUN}" >> ledger.jsonl; git add ledger.jsonl && git commit -qm "ledger $RUN (FICTIONAL)"
+              git push origin HEAD:refs/heads/agent-ledger; say "ledger fast-forward push exit=$?"
+              ;;
+            ledger-force)
+              git fetch -q origin agent-ledger && git switch -q -c ledger origin/agent-ledger
+              git commit -q --amend -m "rewritten $RUN (FICTIONAL)"
+              git push --force origin HEAD:refs/heads/agent-ledger; say "ledger force push exit=$?"
+              ;;
+            ledger-delete)
+              git push origin --delete agent-ledger; say "ledger delete exit=$?"
+              ;;
+          esac
+          exit 0

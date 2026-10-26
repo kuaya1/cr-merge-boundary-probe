@@ -1,0 +1,20 @@
+# FICTIONAL probe: stands in for CryptoResearch's `test` check.
+name: test
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+          SHA: ${{ github.sha }}
+          REF: ${{ github.ref }}
+        run: echo "PROBE test event=$EVENT actor=$ACTOR ref=$REF sha=$SHA"

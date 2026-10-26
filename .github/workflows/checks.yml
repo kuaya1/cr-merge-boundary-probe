@@ -1,0 +1,26 @@
+# FICTIONAL probe: stands in for agent-checks (agent-guard, agent-verify).
+name: agent-checks
+on:
+  push:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  agent-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+        run: echo "PROBE agent-guard event=$EVENT actor=$ACTOR"
+  agent-verify:
+    runs-on: ubuntu-latest
+    steps:
+      - shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTOR: ${{ github.actor }}
+        run: echo "PROBE agent-verify event=$EVENT actor=$ACTOR"

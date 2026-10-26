@@ -1,0 +1,28 @@
+# FICTIONAL probe: stands in for agent-review. After `test` completes, posts
+# the check run `agent-review` on the tested head through the Checks API with
+# GITHUB_TOKEN. A head on a branch starting neutral/ gets a neutral one.
+name: agent-review
+on:
+  workflow_run:
+    workflows: [test]
+    types: [completed]
+permissions: {}
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+    steps:
+      - shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_EVENT: ${{ github.event.workflow_run.event }}
+          GITHUB_SHA_NOW: ${{ github.sha }}
+        run: |
+          concl=success
+          case "$BRANCH" in neutral/*) concl=neutral ;; esac
+          echo "PROBE review head_branch=$BRANCH head_sha=$HEAD_SHA run_event=$RUN_EVENT this_run_sha=$GITHUB_SHA_NOW conclusion=$concl"
+          gh api -X POST "repos/$REPO/check-runs" -f name=agent-review -f head_sha="$HEAD_SHA" -f status=completed -f conclusion="$concl" -f 'output[title]=FICTIONAL probe' -f 'output[summary]=FICTIONAL probe' --jq '{id, name, head_sha, conclusion, app: .app.slug, app_id: .app.id}'
