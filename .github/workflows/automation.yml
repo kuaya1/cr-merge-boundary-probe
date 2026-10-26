@@ -9,7 +9,7 @@ on:
       action:
         required: true
         type: choice
-        options: [open-pr, approve, merge, push-main, ledger-append, ledger-force, ledger-delete]
+        options: [open-pr, approve, merge, push-main, ledger-append, ledger-force, ledger-delete, push-workflow, push-other, update-pr-branch]
       pr:
         required: false
         default: ''
@@ -38,11 +38,25 @@ jobs:
           say() { echo "RESULT $ACTION: $*"; }
           case "$ACTION" in
             open-pr)
-              git switch -c "bot/change-$RUN"
+              git switch -c "agent/change-$RUN"
               echo "bot change $RUN (FICTIONAL)" > "bot-$RUN.txt"
               git add -A && git commit -qm "bot change $RUN (FICTIONAL)"
-              git push -q origin "bot/change-$RUN"; say "branch push exit=$?"
-              gh pr create --base main --head "bot/change-$RUN" --title "Bot change $RUN (FICTIONAL)" --body "Opened by GITHUB_TOKEN (FICTIONAL probe)."; say "pr create exit=$?"
+              git push -q origin "agent/change-$RUN"; say "branch push exit=$?"
+              gh pr create --base main --head "agent/change-$RUN" --title "Bot change $RUN (FICTIONAL)" --body "Opened by GITHUB_TOKEN (FICTIONAL probe)."; say "pr create exit=$?"
+              ;;
+            push-workflow)
+              git switch -c "agent/workflow-$RUN"
+              echo "# changed $RUN" >> .github/workflows/test.yml
+              git add -A && git commit -qm "workflow change $RUN (FICTIONAL)"
+              git push origin "agent/workflow-$RUN"; say "workflow-file push exit=$?"
+              ;;
+            push-other)
+              git switch -c "other/change-$RUN"
+              echo "other $RUN" > "other-$RUN.txt"; git add -A && git commit -qm "other branch $RUN (FICTIONAL)"
+              git push origin "other/change-$RUN"; say "non-agent branch push exit=$?"
+              ;;
+            update-pr-branch)
+              gh api -X PUT "repos/$REPO/pulls/$PR/update-branch"; say "update-branch exit=$?"
               ;;
             approve)
               gh pr review "$PR" --approve --body "Approved by GITHUB_TOKEN (FICTIONAL)"; say "approve exit=$?"
